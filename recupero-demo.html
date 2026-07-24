@@ -1160,7 +1160,7 @@
         <label>Password</label>
         <input type="password" placeholder="••••••••">
       </div>
-      <button class="btn-primary" style="width:100%;padding:15px;margin-top:8px;" onclick="show('v-portal-dashboard')">Sign In →</button>
+      <button class="btn-primary" style="width:100%;padding:15px;margin-top:8px;" onclick="validateClientLogin()">Sign In →</button>
       <div class="admin-link">
         Recupero team? <a onclick="show('v-admin-login')">Admin login →</a>
       </div>
@@ -1634,7 +1634,7 @@
         <label>Password</label>
         <input type="password">
       </div>
-      <button class="btn-primary" style="width:100%;padding:15px;margin-top:8px;" onclick="show('v-admin-landing')">Sign In to Admin →</button>
+      <button class="btn-primary" style="width:100%;padding:15px;margin-top:8px;" onclick="validateAdminLogin()">Sign In to Admin →</button>
       <div class="admin-link"><a onclick="show('v-portal-login')">← Client portal login</a></div>
     </div>
   </div>
@@ -2141,13 +2141,57 @@
 
 
 <script>
+  let isAuthenticatedClient = false;
+  let isAuthenticatedAdmin = false;
+
   function show(viewId) {
+    // Protect dashboard views: require sign-in
+    if (viewId === 'v-portal-dashboard' && !isAuthenticatedClient) {
+      alert('Please sign in to access the Client Dashboard.');
+      // show login view
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const loginEl = document.getElementById('v-portal-login');
+      if (loginEl) loginEl.classList.add('active');
+      return;
+    }
+    if (viewId === 'v-admin-landing' && !isAuthenticatedAdmin) {
+      alert('Admin access requires sign in.');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const adminLogin = document.getElementById('v-admin-login');
+      if (adminLogin) adminLogin.classList.add('active');
+      return;
+    }
+
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const el = document.getElementById(viewId);
     if (el) {
       el.classList.add('active');
       window.scrollTo(0, 0);
     }
+  }
+
+  function validateClientLogin() {
+    const container = document.getElementById('v-portal-login');
+    const email = container.querySelector('input[type="email"]');
+    const pass = container.querySelector('input[type="password"]');
+    if (!email || !pass) { alert('Login inputs not found.'); return; }
+    if (!email.value.trim()) { alert('Please enter your email.'); email.focus(); return; }
+    if (!pass.value.trim()) { alert('Please enter your password.'); pass.focus(); return; }
+    // NOTE: client-side only demo auth — replace with real auth
+    isAuthenticatedClient = true;
+    show('v-portal-dashboard');
+  }
+
+  function validateAdminLogin() {
+    const container = document.getElementById('v-admin-login');
+    const email = container.querySelector('input[type="email"]');
+    const pass = container.querySelector('input[type="password"]');
+    if (!email || !pass) { alert('Login inputs not found.'); return; }
+    if (!email.value.trim()) { alert('Please enter the admin email.'); email.focus(); return; }
+    if (!pass.value.trim()) { alert('Please enter the admin password.'); pass.focus(); return; }
+    // NOTE: admin auth is demo-only here
+    isAuthenticatedAdmin = true;
+    show('v-admin-landing');
   }
 
   function scrollToSection(id) {
