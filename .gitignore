@@ -1,0 +1,9 @@
+# Local config (contains Supabase keys)
+config.js
+
+# Node artifacts
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
