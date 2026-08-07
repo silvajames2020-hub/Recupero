@@ -2518,6 +2518,16 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         return await supabase.auth.signInWithPassword({ email, password });
       }
       async function signOut() { return await supabase.auth.signOut(); }
+      function updateWhoDisplay(portal, email, accessLevel) {
+        var label = portal === 'admin' ? (A_LABEL[accessLevel] || accessLevel) : (C_LABEL[accessLevel] || accessLevel);
+        var text = email + ' · ' + label;
+        if (portal === 'admin') {
+          var who = document.getElementById('adminWho');
+          if (who) who.textContent = text;
+        } else {
+          document.querySelectorAll('.js-who').forEach(function(w){ w.textContent = text; });
+        }
+      }
       async function getProfile() {
         const userResp = await supabase.auth.getUser();
         const user = userResp?.data?.user || null;
@@ -2546,6 +2556,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         isAuthenticatedClient = true;
         currentOrgId = p.profile.org_id;
         setRole(p.profile.access_level);
+        updateWhoDisplay('client', p.user.email, p.profile.access_level);
         show('v-cdash-a');
       };
 
@@ -2566,6 +2577,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         isAuthenticatedAdmin = true;
         currentOrgId = p.profile.org_id;
         setRole(p.profile.access_level);
+        updateWhoDisplay('admin', p.user.email, p.profile.access_level);
         adminTab('dash');
         show('v-adash-a');
       };
@@ -2586,6 +2598,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         if (p && !p.error && p.profile) {
           currentOrgId = p.profile.org_id;
           setRole(p.profile.access_level);
+          updateWhoDisplay(p.profile.portal, p.user.email, p.profile.access_level);
           if (p.profile.portal === 'admin') isAuthenticatedAdmin = true;
           if (p.profile.portal === 'client') isAuthenticatedClient = true;
         }
