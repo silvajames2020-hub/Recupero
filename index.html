@@ -2748,6 +2748,22 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         if (ok) ok.style.display = 'block';
       };
 
+      // supabase-js doesn't surface an Edge Function's own error body on a
+      // non-2xx response -- `error` is just a generic FunctionsHttpError
+      // ("Edge Function returned a non-2xx status code"). The actual JSON
+      // body our functions return (e.g. { error: "Not authorized..." })
+      // is on error.context, which is the raw Response and needs parsing.
+      async function functionErrorMessage(error, data, fallback) {
+        if (data && data.error) return data.error;
+        if (error && error.context && typeof error.context.json === 'function') {
+          try {
+            const body = await error.context.json();
+            if (body && body.error) return body.error;
+          } catch (e) { /* response wasn't JSON -- fall through */ }
+        }
+        return error?.message || fallback;
+      }
+
       // Admin-only: create a new admin-portal login via the create-admin-user
       // Edge Function. That function holds the service_role key server-side
       // and re-checks the caller is really an admin -- this client code only
@@ -2762,7 +2778,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
           body: { email, access_level: accessLevel }
         });
         if (error || (data && data.error)) {
-          const msg = (data && data.error) || error?.message || 'Could not add user.';
+          const msg = await functionErrorMessage(error, data, 'Could not add user.');
           if (err) { err.textContent = msg; err.style.display = 'block'; }
           return;
         }
@@ -2830,7 +2846,8 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
           body: { request_id: id }
         });
         if (error || (data && data.error)) {
-          alert('Could not approve request: ' + ((data && data.error) || error?.message || 'unknown error'));
+          const msg = await functionErrorMessage(error, data, 'Unknown error');
+          alert('Could not approve request: ' + msg);
           return;
         }
         alert('Approved. They will receive an email to set their password.');
