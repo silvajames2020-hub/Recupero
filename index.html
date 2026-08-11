@@ -1993,13 +1993,9 @@
         <div class="card">
           <div class="card-header"><h4>Team &amp; roles</h4><button class="btn-sm btn-primary" onclick="openAddTeam()">+ Invite</button></div>
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Clients</th><th></th></tr></thead>
-            <tbody>
-              <tr><td>James Silva</td><td>james@recuperohq.com</td><td><span class="badge badge-won">Admin</span></td><td>All</td><td></td></tr>
-              <tr><td>Connor Berto</td><td>connor@recuperohq.com</td><td><span class="badge badge-won">Admin</span></td><td>All</td><td></td></tr>
-              <tr><td>Marcus Reed</td><td>marcus@recuperohq.com</td><td><span class="badge badge-review">Analyst</span></td><td>6 assigned</td><td class="clickable">Edit</td></tr>
-              <tr><td>Ana Silva</td><td>ana@recuperohq.com</td><td><span class="badge badge-review">Analyst</span></td><td>4 assigned</td><td class="clickable">Edit</td></tr>
-              <tr><td>Tam Nguyen</td><td>tam@recuperohq.com</td><td><span class="badge">Viewer</span></td><td>Read only</td><td class="clickable">Edit</td></tr>
+            <thead><tr><th>Email</th><th>Role</th><th></th></tr></thead>
+            <tbody id="teamMembersBody">
+              <tr id="teamMembersEmpty"><td colspan="3" style="color:var(--text-light);">Requires the live site (Supabase not configured in this environment).</td></tr>
             </tbody>
           </table>
         </div>
@@ -2016,11 +2012,8 @@
           <div class="card-header"><h4>Account administration</h4></div>
           <table>
             <thead><tr><th>Client account</th><th>Status</th><th>Users</th><th></th></tr></thead>
-            <tbody>
-              <tr><td>Sunrise Snacks Co.</td><td><span class="badge badge-won">Active</span></td><td>4</td><td class="clickable" onclick="alert('Delete account — confirmation required.')">Delete</td></tr>
-              <tr><td>Copper Kettle Foods</td><td><span class="badge badge-won">Active</span></td><td>3</td><td class="clickable" onclick="alert('Delete account — confirmation required.')">Delete</td></tr>
-              <tr><td>Verde Foods</td><td><span class="badge badge-pending">Onboarding</span></td><td>2</td><td class="clickable" onclick="alert('Delete account — confirmation required.')">Delete</td></tr>
-              <tr><td>Northfield Dairy</td><td><span class="badge badge-won">Active</span></td><td>5</td><td class="clickable" onclick="alert('Delete account — confirmation required.')">Delete</td></tr>
+            <tbody id="clientAccountsBody">
+              <tr id="clientAccountsEmpty"><td colspan="4" style="color:var(--text-light);">Requires the live site (Supabase not configured in this environment).</td></tr>
             </tbody>
           </table>
         </div>
@@ -2311,7 +2304,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
       }
     }
     if(name === 'queue') filterQueue();
-    if(name === 'org' && window.loadPendingRequests) loadPendingRequests();
+    if(name === 'org' && window.loadPendingRequests) { loadPendingRequests(); loadTeamMembers(); loadClientAccounts(); }
     if(document.scrollingElement) document.scrollingElement.scrollTop = 0;
   }
   function adminAccount(){ if(CURRENT_ROLE === 'admin') adminTab('org'); }
@@ -2796,6 +2789,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         }
         closeAddTeam();
         alert(email + ' invited. They will receive an email to set their password.');
+        loadTeamMembers();
       };
 
       // Public: anyone on the client login page can submit this, signed in
@@ -2853,6 +2847,59 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         }).join('');
       };
 
+      // Admin-only: lists everyone on the admin portal (portal='admin').
+      // No display-name field exists on profiles yet -- the invite flow
+      // only ever collects an email -- so this shows email, not a name.
+      window.loadTeamMembers = async function() {
+        const body = document.getElementById('teamMembersBody');
+        if (!body) return;
+        const A_LABEL_DISPLAY = { view: 'Viewer', analyst: 'Analyst', admin: 'Admin' };
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, email, access_level')
+          .eq('portal', 'admin')
+          .order('email', { ascending: true });
+        if (error) { console.error('Failed to load team members:', error); return; }
+        if (!data || data.length === 0) {
+          body.innerHTML = '<tr id="teamMembersEmpty"><td colspan="3" style="color:var(--text-light);">No team members.</td></tr>';
+          return;
+        }
+        body.innerHTML = data.map(function(m) {
+          return '<tr>' +
+            '<td>' + m.email + '</td>' +
+            '<td><span class="badge' + (m.access_level === 'admin' ? ' badge-won' : '') + '">' + (A_LABEL_DISPLAY[m.access_level] || m.access_level) + '</span></td>' +
+            '<td></td>' +
+          '</tr>';
+        }).join('');
+      };
+
+      // Admin-only: lists every client org, with a live count of its
+      // client-portal users. There's no "onboarding" vs "active" tracking
+      // in the schema yet, so every org just shows Active -- if it exists,
+      // an admin already approved it.
+      window.loadClientAccounts = async function() {
+        const body = document.getElementById('clientAccountsBody');
+        if (!body) return;
+        const { data, error } = await supabase
+          .from('orgs')
+          .select('id, name, profiles(count)')
+          .order('name', { ascending: true });
+        if (error) { console.error('Failed to load client accounts:', error); return; }
+        if (!data || data.length === 0) {
+          body.innerHTML = '<tr id="clientAccountsEmpty"><td colspan="4" style="color:var(--text-light);">No client accounts.</td></tr>';
+          return;
+        }
+        body.innerHTML = data.map(function(o) {
+          const userCount = (o.profiles && o.profiles[0] && o.profiles[0].count) || 0;
+          return '<tr>' +
+            '<td>' + o.name + '</td>' +
+            '<td><span class="badge badge-won">Active</span></td>' +
+            '<td>' + userCount + '</td>' +
+            '<td class="clickable" onclick="alert(\'Delete account — confirmation required.\')">Delete</td>' +
+          '</tr>';
+        }).join('');
+      };
+
       window.approveSignupRequest = async function(id) {
         const { data, error } = await supabase.functions.invoke('approve-signup-request', {
           body: { request_id: id }
@@ -2864,6 +2911,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         }
         alert('Approved. They will receive an email to set their password.');
         loadPendingRequests();
+        loadClientAccounts();
       };
 
       window.rejectSignupRequest = async function(id) {
