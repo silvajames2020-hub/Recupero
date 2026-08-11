@@ -1219,6 +1219,9 @@
       <button class="btn-primary" style="width:100%;padding:15px;margin-top:8px;" onclick="validateClientLogin()">Sign In →</button>
       <div class="admin-link" style="margin-top:12px;"><a onclick="requestPasswordReset('v-portal-login','client-login-error')">Forgot password?</a></div>
       <div class="admin-link">
+        New here? <a onclick="openRequestAccess()">Create new account</a>
+      </div>
+      <div class="admin-link">
         Recupero team? <a onclick="show('v-admin-login')">Admin login →</a>
       </div>
       <div class="admin-link" style="margin-top:12px;"><a onclick="show('v-landing')">← Back to Site</a></div>
@@ -2002,6 +2005,15 @@
           </table>
         </div>
         <div class="card" style="margin-top:16px;">
+          <div class="card-header"><h4>Pending signup requests</h4></div>
+          <table>
+            <thead><tr><th>Company</th><th>Contact</th><th>Email</th><th>Requested</th><th></th></tr></thead>
+            <tbody id="pendingRequestsBody">
+              <tr id="pendingRequestsEmpty"><td colspan="5" style="color:var(--text-light);">Requires the live site (Supabase not configured in this environment).</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card" style="margin-top:16px;">
           <div class="card-header"><h4>Account administration</h4></div>
           <table>
             <thead><tr><th>Client account</th><th>Status</th><th>Users</th><th></th></tr></thead>
@@ -2076,6 +2088,32 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
     <div style="display:flex;gap:10px;margin-top:20px;">
       <button class="btn-primary" onclick="submitAddTeamMember()">Send Invite</button>
       <button class="btn-outline" onclick="closeAddTeam()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLIENT SIGNUP REQUEST MODAL -->
+<div class="modal-back" id="requestAccessModal">
+  <div class="modal-box">
+    <h3>Create your account</h3>
+    <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">Tell us a bit about your company. Our team reviews new accounts before access goes live -- you'll get an email to set your password once approved.</p>
+    <div id="request-access-error" style="color:#b00020;margin-bottom:10px;display:none;"></div>
+    <div id="request-access-success" style="color:#1a7f37;margin-bottom:10px;display:none;">Request sent. We'll email you once it's approved.</div>
+    <div class="form-group">
+      <label>Your Name</label>
+      <input type="text" id="request-access-name" placeholder="Jane Okafor">
+    </div>
+    <div class="form-group">
+      <label>Company Name</label>
+      <input type="text" id="request-access-company" placeholder="Sunrise Snacks Co.">
+    </div>
+    <div class="form-group">
+      <label>Work Email</label>
+      <input type="email" id="request-access-email" placeholder="jane@company.com">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn-primary" onclick="submitRequestAccess()">Request Access</button>
+      <button class="btn-outline" onclick="closeRequestAccess()">Cancel</button>
     </div>
   </div>
 </div>
@@ -2273,6 +2311,7 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
       }
     }
     if(name === 'queue') filterQueue();
+    if(name === 'org' && window.loadPendingRequests) loadPendingRequests();
     if(document.scrollingElement) document.scrollingElement.scrollTop = 0;
   }
   function adminAccount(){ if(CURRENT_ROLE === 'admin') adminTab('org'); }
@@ -2289,6 +2328,22 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
   function submitAddTeamMember(){
     const err = document.getElementById('add-team-error');
     if (err) { err.textContent = 'Adding users requires the live site (Supabase not configured in this environment).'; err.style.display = 'block'; }
+  }
+
+  function openRequestAccess(){ document.getElementById('requestAccessModal').classList.add('open'); }
+  function closeRequestAccess(){
+    document.getElementById('requestAccessModal').classList.remove('open');
+    const err = document.getElementById('request-access-error');
+    const ok = document.getElementById('request-access-success');
+    if (err) err.style.display = 'none';
+    if (ok) ok.style.display = 'none';
+    document.getElementById('request-access-name').value = '';
+    document.getElementById('request-access-company').value = '';
+    document.getElementById('request-access-email').value = '';
+  }
+  function submitRequestAccess(){
+    const err = document.getElementById('request-access-error');
+    if (err) { err.textContent = 'Requesting access requires the live site (Supabase not configured in this environment).'; err.style.display = 'block'; }
   }
 
 
@@ -2713,6 +2768,82 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
         }
         closeAddTeam();
         alert(email + ' invited. They will receive an email to set their password.');
+      };
+
+      // Public: anyone on the client login page can submit this, signed in
+      // or not. Low-privilege by design -- RLS only allows creating a
+      // 'pending' row with no org attached (see
+      // supabase/migrations/0002_signup_requests.sql), so this can never
+      // grant access on its own.
+      window.submitRequestAccess = async function() {
+        const name = document.getElementById('request-access-name')?.value?.trim();
+        const company = document.getElementById('request-access-company')?.value?.trim();
+        const email = document.getElementById('request-access-email')?.value?.trim();
+        const err = document.getElementById('request-access-error');
+        const ok = document.getElementById('request-access-success');
+        if (ok) ok.style.display = 'none';
+        if (!name || !company || !email) { if (err) { err.textContent = 'Fill in your name, company, and email.'; err.style.display = 'block'; } return; }
+        if (err) err.style.display = 'none';
+        const { error } = await supabase.from('signup_requests').insert({
+          email, company_name: company, contact_name: name
+        });
+        if (error) { if (err) { err.textContent = error.message || 'Could not send request.'; err.style.display = 'block'; } return; }
+        if (ok) ok.style.display = 'block';
+        document.getElementById('request-access-name').value = '';
+        document.getElementById('request-access-company').value = '';
+        document.getElementById('request-access-email').value = '';
+      };
+
+      // Admin-only: lists pending signup_requests (RLS restricts SELECT on
+      // that table to admin-portal staff, so this simply returns nothing
+      // for anyone else).
+      window.loadPendingRequests = async function() {
+        const body = document.getElementById('pendingRequestsBody');
+        if (!body) return;
+        const { data, error } = await supabase
+          .from('signup_requests')
+          .select('*')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true });
+        if (error) { console.error('Failed to load signup requests:', error); return; }
+        if (!data || data.length === 0) {
+          body.innerHTML = '<tr id="pendingRequestsEmpty"><td colspan="5" style="color:var(--text-light);">No pending requests.</td></tr>';
+          return;
+        }
+        body.innerHTML = data.map(function(r) {
+          const requested = new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          return '<tr>' +
+            '<td>' + r.company_name + '</td>' +
+            '<td>' + (r.contact_name || '') + '</td>' +
+            '<td>' + r.email + '</td>' +
+            '<td>' + requested + '</td>' +
+            '<td style="display:flex;gap:10px;">' +
+              '<a class="clickable" onclick="approveSignupRequest(\'' + r.id + '\')">Approve</a>' +
+              '<a class="clickable" onclick="rejectSignupRequest(\'' + r.id + '\')">Reject</a>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
+      };
+
+      window.approveSignupRequest = async function(id) {
+        const { data, error } = await supabase.functions.invoke('approve-signup-request', {
+          body: { request_id: id }
+        });
+        if (error || (data && data.error)) {
+          alert('Could not approve request: ' + ((data && data.error) || error?.message || 'unknown error'));
+          return;
+        }
+        alert('Approved. They will receive an email to set their password.');
+        loadPendingRequests();
+      };
+
+      window.rejectSignupRequest = async function(id) {
+        const { error } = await supabase
+          .from('signup_requests')
+          .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+          .eq('id', id);
+        if (error) { alert('Could not reject request: ' + error.message); return; }
+        loadPendingRequests();
       };
 
       // Following a recovery or invite email link lands back here with a
