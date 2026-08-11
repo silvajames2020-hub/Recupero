@@ -2134,8 +2134,9 @@ On behalf of Sunrise Snacks Co. (Supplier 447120)</div>
       </div>
       <button class="btn-primary" style="width:100%;padding:15px;margin-top:8px;" onclick="validateAdminLogin()">Sign In to Admin →</button>
       <div class="admin-link" id="admin-forgot-password" style="display:none;"><a onclick="requestPasswordReset('v-admin-login','admin-login-error')">Forgot password?</a></div>
-      <div class="admin-link"><a onclick="show('v-portal-login')">← Client portal login</a></div>
-      <div class="admin-link" style="margin-top:12px;"><a onclick="show('v-landing')">← Back to Site</a></div>
+      <div class="admin-link" style="margin-top:22px;border-top:1px solid var(--border);padding-top:16px;">
+        <a onclick="show('v-portal-login')">Client portal login</a> &nbsp;·&nbsp; <a onclick="show('v-landing')">Back to Site</a>
+      </div>
     </div>
   </div>
 </div><!-- /v-admin-login -->
